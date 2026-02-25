@@ -1,0 +1,52 @@
+{
+  "manifest_version": "0.3",
+  "name": "mcp-prtg",
+  "version": "0.1.0",
+  "description": "Read-only MCP server for PRTG Network Monitor. Query sensors, devices, groups, channels, historical data, and system status via the classic PRTG HTTP API.",
+  "author": {
+    "name": "Diego Mayán",
+    "email": "diego.mayan@ssservicios.com.ar"
+  },
+  "display_name": "PRTG Network Monitor",
+  "user_config": {
+    "prtg_url": {
+      "type": "string",
+      "title": "PRTG URL",
+      "description": "URL of your PRTG server (e.g., https://prtg.example.com)",
+      "required": true,
+      "default": "https://localhost"
+    },
+    "prtg_username": {
+      "type": "string",
+      "title": "Username",
+      "description": "PRTG username for authentication",
+      "required": true
+    },
+    "prtg_passhash": {
+      "type": "string",
+      "title": "Passhash",
+      "description": "PRTG passhash (get it from https://your-prtg/api/getpasshash.htm?username=USER&password=PASS)",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "server": {
+    "type": "python",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "${__dirname}",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "PRTG_URL": "${user_config.prtg_url}",
+        "PRTG_USERNAME": "${user_config.prtg_username}",
+        "PRTG_PASSHASH": "${user_config.prtg_passhash}"
+      }
+    }
+  },
+  "license": "MIT"
+}

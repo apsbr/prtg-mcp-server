@@ -1,0 +1,10 @@
+[project]
+name = "mcp-prtg"
+version = "0.1.0"
+description = "MCP server for PRTG Network Monitor — read-only"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.2.0",
+    "httpx>=0.27.0",
+]
