@@ -1,5 +1,5 @@
 services:
-  prtg-mcp:
+  prtg-mcp-server:
     build: .
     ports:
       - "${MCP_PORT:-8000}:8000"
