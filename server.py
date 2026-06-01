@@ -1,18 +1,90 @@
 """MCP server for PRTG Network Monitor — read-only."""
 
 import json
+import hmac
 import os
 import ssl
 from typing import Any, Optional
 
 import httpx
+from mcp.server.auth.provider import AccessToken, TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
-
-mcp = FastMCP("prtg")
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 PRTG_URL = os.environ.get("PRTG_URL", "https://localhost")
 PRTG_USERNAME = os.environ.get("PRTG_USERNAME")
 PRTG_PASSHASH = os.environ.get("PRTG_PASSHASH")
+
+MCP_TRANSPORT = os.environ.get("MCP_TRANSPORT", "stdio")
+MCP_HOST = os.environ.get("MCP_HOST", "0.0.0.0")
+MCP_PORT = int(os.environ.get("MCP_PORT", "8000"))
+MCP_PATH = os.environ.get("MCP_PATH", "/mcp")
+MCP_STATELESS_HTTP = os.environ.get("MCP_STATELESS_HTTP", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+MCP_BEARER_TOKEN = os.environ.get("MCP_BEARER_TOKEN")
+MCP_PUBLIC_URL = os.environ.get("MCP_PUBLIC_URL", f"http://localhost:{MCP_PORT}")
+MCP_AUTH_ISSUER_URL = os.environ.get("MCP_AUTH_ISSUER_URL", MCP_PUBLIC_URL)
+MCP_AUTH_SCOPES = [
+    scope.strip()
+    for scope in os.environ.get("MCP_AUTH_SCOPES", "prtg:read").split(",")
+    if scope.strip()
+]
+
+
+class StaticBearerTokenVerifier(TokenVerifier):
+    """Validate a single bearer token configured through the environment."""
+
+    def __init__(self, expected_token: str, scopes: list[str]) -> None:
+        self.expected_token = expected_token
+        self.scopes = scopes
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        if not hmac.compare_digest(token, self.expected_token):
+            return None
+        return AccessToken(
+            token=token,
+            client_id="prtg-mcp-client",
+            scopes=self.scopes,
+            resource=MCP_PUBLIC_URL,
+        )
+
+
+def _create_mcp() -> FastMCP:
+    kwargs: dict[str, Any] = {
+        "host": MCP_HOST,
+        "port": MCP_PORT,
+        "streamable_http_path": MCP_PATH,
+        "stateless_http": MCP_STATELESS_HTTP,
+        "json_response": True,
+    }
+
+    if MCP_BEARER_TOKEN:
+        kwargs["token_verifier"] = StaticBearerTokenVerifier(
+            MCP_BEARER_TOKEN,
+            MCP_AUTH_SCOPES,
+        )
+        kwargs["auth"] = AuthSettings(
+            issuer_url=MCP_AUTH_ISSUER_URL,
+            resource_server_url=MCP_PUBLIC_URL,
+            required_scopes=MCP_AUTH_SCOPES,
+        )
+
+    return FastMCP("prtg", **kwargs)
+
+
+mcp = _create_mcp()
+
+
+@mcp.custom_route("/health", methods=["GET"], include_in_schema=False)
+async def health(_: Request) -> Response:
+    return JSONResponse({"status": "ok", "service": "prtg-mcp"})
+
 
 # Build auth params
 _AUTH: dict[str, str] = {}
@@ -221,7 +293,14 @@ async def search(query: str, type: str = "sensors", count: int = 50) -> str:
 
 
 def main():
-    mcp.run(transport="stdio")
+    transport = MCP_TRANSPORT.lower().replace("_", "-")
+    if transport == "http":
+        transport = "streamable-http"
+
+    if transport == "streamable-http" and not MCP_BEARER_TOKEN:
+        raise RuntimeError("MCP_BEARER_TOKEN is required when MCP_TRANSPORT=streamable-http")
+
+    mcp.run(transport=transport)
 
 
 if __name__ == "__main__":

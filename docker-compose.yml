@@ -1,0 +1,17 @@
+services:
+  prtg-mcp:
+    build: .
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    environment:
+      MCP_TRANSPORT: "streamable-http"
+      MCP_HOST: "0.0.0.0"
+      MCP_PORT: "8000"
+      MCP_PATH: "${MCP_PATH:-/mcp}"
+      MCP_STATELESS_HTTP: "${MCP_STATELESS_HTTP:-true}"
+      MCP_PUBLIC_URL: "${MCP_PUBLIC_URL:-http://localhost:8000}"
+      MCP_BEARER_TOKEN: "${MCP_BEARER_TOKEN:?set MCP_BEARER_TOKEN in .env}"
+      PRTG_URL: "${PRTG_URL:?set PRTG_URL in .env}"
+      PRTG_USERNAME: "${PRTG_USERNAME:?set PRTG_USERNAME in .env}"
+      PRTG_PASSHASH: "${PRTG_PASSHASH:?set PRTG_PASSHASH in .env}"
+    restart: unless-stopped

@@ -18,6 +18,69 @@ Open this URL in your browser (replace with your PRTG server, user, and password
 https://prtg.example.com/api/getpasshash.htm?username=myuser&password=mypassword
 ```
 
+## HTTP Transport with Bearer Auth
+
+The server can run over MCP Streamable HTTP at `/mcp` and requires a static
+Bearer token when HTTP mode is enabled.
+
+Required HTTP variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MCP_TRANSPORT` | Yes | Use `streamable-http` or `http` for HTTP mode. Use `stdio` for local stdio mode. |
+| `MCP_BEARER_TOKEN` | Yes for HTTP | Bearer token expected in the `Authorization` header. Use a long random value. |
+| `MCP_HOST` | No | Bind address. Defaults to `0.0.0.0` in Docker. |
+| `MCP_PORT` | No | Listen port. Defaults to `8000`. |
+| `MCP_PATH` | No | MCP endpoint path. Defaults to `/mcp`. |
+| `MCP_STATELESS_HTTP` | No | Use stateless Streamable HTTP sessions. Defaults to `true`. |
+| `MCP_PUBLIC_URL` | No | Public base URL used in MCP auth metadata. Defaults to `http://localhost:8000`. |
+| `MCP_AUTH_ISSUER_URL` | No | Issuer URL reported in auth metadata. Defaults to `MCP_PUBLIC_URL`. |
+| `MCP_AUTH_SCOPES` | No | Comma-separated scopes. Defaults to `prtg:read`. |
+
+HTTP endpoint:
+
+```
+http://localhost:8000/mcp
+```
+
+Clients must send:
+
+```
+Authorization: Bearer <MCP_BEARER_TOKEN>
+```
+
+The container also exposes an unauthenticated health check:
+
+```
+GET http://localhost:8000/health
+```
+
+## Docker
+
+Create a `.env` file from the example:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your PRTG credentials and a strong `MCP_BEARER_TOKEN`, then run:
+
+```bash
+docker compose up --build
+```
+
+Or build and run manually:
+
+```bash
+docker build -t mcp-prtg .
+docker run --rm -p 8000:8000 \
+  -e MCP_BEARER_TOKEN="replace-with-a-long-random-token" \
+  -e PRTG_URL="https://prtg.example.com" \
+  -e PRTG_USERNAME="apiuser" \
+  -e PRTG_PASSHASH="1234567890" \
+  mcp-prtg
+```
+
 ## Configuration in Claude Desktop
 
 Add this to your `claude_desktop_config.json`:
@@ -68,6 +131,11 @@ uv sync
 
 # Run the server locally
 PRTG_URL=https://prtg.local PRTG_USERNAME=admin PRTG_PASSHASH=12345 uv run server.py
+
+# Run locally over HTTP
+MCP_TRANSPORT=streamable-http MCP_BEARER_TOKEN=secret \
+  PRTG_URL=https://prtg.local PRTG_USERNAME=admin PRTG_PASSHASH=12345 \
+  uv run server.py
 
 # Test with MCP Inspector
 npx @modelcontextprotocol/inspector uv run server.py
